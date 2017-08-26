@@ -1,0 +1,134 @@
+---
+title: "Tarea 1"
+author: "Daniel Camarena"
+date: "18/8/2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Tarea 1
+
+Usando el paquete *gapminder* realiza al menos 3 gráficas y explica las relaciones que encuentres. Debes usar lo que revisamos en estas notas: al menos una de las gráficas debe ser de páneles, realiza una gráfica con datos de México, y (opcional)si lo consideras interesante, puedes crear una variable categórica utilizando la función cut2 del paquete Hmisc. 
+
+
+### Gapminder
+
+Cargamos las librerias necesarias:
+
+```{r message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(gapminder)
+```
+Veamos de que trata el paquete gapminder:
+
+```{r message=FALSE}
+?gapminder
+```
+
+Con el comando anterior podemos ver que el paquete *gapminder* contiene datos de la esperanza de vida, *GDP* per capita, y densidad de población por país.
+
+Sería pertinente hechar un vistazo a los datos con la función *glimpse*
+
+```{r}
+glimpse(gapminder)
+````
+
+Podemos observar que este paquete contiene las siguientes variables:
+
++ country: factor (142 niveles)
++ continent: factor (5 niveles)
++ year: entero, rangos desde 1952 a 2007 en incrementos de 5 años
++ lifeExp: doble, esperanza de vida en años al momento del nacimiento
++ pop: entero, población
++ gdpPercap: doble, *GDP* per capita
+
+Primero grafiquemos la esperanza de vida por continente:
+```{r}
+ggplot(gapminder, aes(x = continent, y = lifeExp)) +
+  geom_boxplot(outlier.colour = "orangered") +
+  geom_jitter(position = position_jitter(width = 0.1, height = 0), alpha = 1/4)
+```
+
+Podemos observar que los continentes con mayor esperanza de vida son Europa y Oceania, seguidos por America y Asia. 
+
+Podemos graficar el gdpPercapita vs la Esperanza de Vida para cada uno de los continentes:
+
+```{r}
+ggplot(data = gapminder, aes(x = lifeExp, y = gdpPercap)) +
+  geom_point(aes(color=continent))
+```
+
+Podemos notar que Africa tiene los menores niveles de ambas variable mientras que Europa tiene alta esperanza de vida y niveles medios de gdpPercapita, siendo Asia quien destaca por tener puntos mas altos en gdpPercapita.
+
+Podemos graficar el gdpPercap de cada uno de los paises que forman un continente:
+
+```{r fig.width = 8, fig.height = 2}
+ggplot(data= gapminder, aes(x=year, y=gdpPercap, color=country)) +
+  geom_line() + facet_grid(. ~ continent) + theme(legend.position="none")
+```
+Nuevamente vemos que Africa tiene los peores niveles (excepto por dos paises que sobresalen), en Europa vemos como hay una tendencia similar para la mayoria de los paises, en Oceania ambos paises tienen un gdp similar, en America sobresalen dos paises y los demás siguen una tendencia diferente a estos dos y en Asia hay un Pais que sobresalió desde 1950 hasta 1980.
+
+Concentremos nuestra atención en México
+
+Podría ser interesante graficar la esperanza de vida para Mexico:
+  
+
+```{r}
+data <- gapminder %>% filter(country == 'Mexico') 
+        
+g <- ggplot(data, aes(x=year, y=lifeExp))
+g + geom_line()
+```
+
+Podemos ver como es que la esperanza de vida ha seguido creciendo a lo largo de los añs pasando de 51 años en 1950 a mas de 76 años en 2007 
+
+Ya estando en esto, veamos la población en México también...
+```{r}
+data <- gapminder %>% filter(country == 'Mexico') 
+        
+g <- ggplot(data, aes(x=year, y=pop))
+g + geom_line()
+```
+
+y el gdpPercapita...
+```{r}
+data <- gapminder %>% filter(country == 'Mexico') 
+        
+g <- ggplot(data, aes(x=year, y=gdpPercap))
+g + geom_line()
+```
+
+Podriamos comparar el comportamiento de México contra su continente:
+
+Esperanza de vida:
+```{r fig.width = 8, fig.height = 5}
+data <- gapminder %>% filter(continent == 'Americas') 
+        
+g <- ggplot(data, aes(x=year, y=lifeExp))
+g + geom_line() + facet_wrap(~ country)
+```
+
+Es fácil notar que **Canadá** y **Estados Unidos** tienen los mayores niveles de *esperanza de vida*
+
+Población:
+
+```{r fig.width = 8, fig.height = 5}
+data <- gapminder %>% filter(continent == 'Americas') 
+        
+g <- ggplot(data, aes(x=year, y=pop))
+g + geom_line() + facet_wrap(~ country)
+```
+Los paises que sobresalen por su crecimiento poblacional a lo largo de los años son: **Estados Unidos, México y Brazil**
+
+
+GDP:
+```{r fig.width = 8, fig.height = 5}
+data <- gapminder %>% filter(continent == 'Americas') 
+        
+g <- ggplot(data, aes(x=year, y=gdpPercap))
+g + geom_line() + facet_wrap(~ country)
+```
+
+Aqui vemos que los dos paises que sobresalen en GDP en el continente son **EEUU** y **Canadá**
