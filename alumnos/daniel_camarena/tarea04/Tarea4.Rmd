@@ -43,7 +43,7 @@ if(length(grep("A",hand1,value = TRUE))==1 && length(grep("A",hand2,value = TRUE
 return(result)
 }
 
-n <-10000
+n <-100000
 result <- rerun(n, prob())
 prob<-Reduce("+", result)/n
 print(paste("La probabilidad de que cada pila tenga exactamente un as es",prob))
@@ -82,9 +82,6 @@ print(paste("La probabilidad de que el segundo dado tenga un 6 dado a que los do
 ```
 3. Revolvemos una baraja de cartas y la partimos en dos mitades (26 cartas en cada parte). Extraemos una carta de la primera mitad y resulta en As. Colocamos el As en la segunda mitad de la baraja, revolvemos las 27 cartas correspondientes y seleccionamos una carta. ¿Cuál es la probabilidad de que hayamos seleccionado un As? Pista: condiciona en si seleccionamos o no la carta que añadimos.
 
-Hay dos posibles interpretaciones:
-
-La primera es que siempre la primera carta obtenida es un AS
 ```{r}
 library(tidyverse)
 shuffle <- function(){
@@ -123,41 +120,6 @@ n<- 100000
 result <- rerun(n,shuffle())
 prob<-Reduce("+", result)/n
 print(paste("La probabilidad de que la carta elegida sea un as es",prob))
-```
-
-La segunda es que si la primera carta no es un AS el ejercicio termina y se repite el proceso otra vez hasta que la carta sea un AS
-```{r}
-prob<- function(){
-deck <-
-  as.character(outer(
-    c(2:10, "J", "Q", "K", "A")
-    , c("S", "H", "D", "C")
-    , paste
-    , sep = "_"
-  ))
-  
-mitad1<- sample(deck, 26)  
-mitad2<- deck[!(deck %in% mitad1)] 
-carta1<- sample(mitad1,1)
-
-if(length(grep("A", carta1, value = TRUE))==1){
-  mitad2 <- append(mitad2, carta1[1])
-  carta2<- sample(mitad2,1)}
-  if(length(grep("A",carta2,value = TRUE))==1){
-    result<- TRUE
-} else {
-    result<- FALSE
-  }
-return(result)
- } 
-
-n <-100000
-result <- rerun(n, prob())
-prob<-Reduce("+", result)/n
-
-print(paste("La probabilidad de obtener un as en la segunda mitad es",prob))
-
-
 ```
 
 
