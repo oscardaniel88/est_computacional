@@ -1,0 +1,266 @@
+---
+title: "Tarea06"
+author: "Daniel Camarena"
+date: "15/9/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+### 1.ENIGH
+
+Para este ejercicio usaremos los datos de la ENIGH (2014). En la tabla concentradohogar que vimos en clase se incluyen las variables alimentos, vestido, vivienda, salud, comunica, educacion y esparci (esparcimiento) que indican el gasto trimestral en cada una de las categorías.
+
+```{r options, echo = FALSE, message=FALSE, error=TRUE, warning=FALSE}
+knitr::opts_chunk$set(
+    comment = "#>",
+    collapse = TRUE
+)
+comma <- function(x) format(x, digits = 2, big.mark = ",")
+options(digits=3)
+
+library(tidyverse)
+library(dplyr)
+library(gridExtra)
+theme_set(theme_minimal())
+```
+
+```{r message=FALSE, warning=FALSE}
+concentrado_hogar <- read_csv("datos/concentradohogar.csv")
+hogar <- concentrado_hogar %>% 
+    select(folioviv, foliohog, est_dis, upm, factor_hog, ing_cor, alimentos, 
+        vestido, vivienda, salud, transporte, comunica, educacion, esparci)
+```
+
+
+Nos interesa analizar los patrones de gasto por decil de ingreso, para ello sigue los siguientes pasos.
+
+1. Calcula los deciles de ingreso usando la variable de ingreso corriente (ing_cor). Debes tomar en cuenta el diseño de la muestra, puedes usar la función survey_quantile() del paquete srvyr o svyquantile() del paquete survey. Reporta las estimaciones y sus errores estándar usando el bootstrap de Rao y Wu.
+
+```{r srvyr_media, cache=TRUE, message=FALSE}
+# 1. Definimos el diseño de la encuesta
+library(survey); library(srvyr);library(gridExtra)
+enigh_design <- hogar %>% 
+    as_survey_design(ids = upm, weights = factor_hog, strata = est_dis)
+
+set.seed(7398731)
+enigh_boot <- enigh_design %>% 
+    as_survey_rep(type = "subbootstrap", replicates = 500)
+
+enigh_boot %>% 
+    srvyr::summarise(mean_ingcor = survey_mean(ing_cor))
+
+deciles<- svyquantile(~ing_cor, enigh_boot, quantiles = seq(0.1, 1, 0.1), interval.type = "quantile")
+print(deciles)
+
+```
+
+
+2. Crea una nueva variable que indique el decil de ingreso para cada hogar. Tips: 1) una función que puede resultar útil es cut2() (de Hmisc)
+```{r}
+library(Hmisc)
+#### NOTA: COn cut2 no coinciden los deciles con los calculados con survey
+#hog1<- hogar %>% mutate(decil = cut2(ing_cor, g=10))
+hogar_decil<-hogar %>% mutate(decil = cut2(hogar$ing_cor, g=10))
+dec<-levels(cut2(hogar$ing_cor,g=10))
+dec<-as.data.frame(dec)
+dec$decil_number<-c(1,2,3,4,5,6,7,8,9,10)
+
+hogar_decil<-hogar_decil %>% left_join(dec, by = c("decil"="dec"))
+
+```
+
+
+3. Estima para cada decil, el porcentaje del gasto en cada categoría, reporta el error estándar de las estimaciones, usa el bootstrap de Rao y Wu. Tip: 1) agrega una variable que indica para cada hogar el porcentaje de gasto en cada categoría, 2) si usas srvyr puedes usar la función group_by() para estimar la media del porcentaje de gasto por decil.
+
+```{r}
+hogar_3<- hogar_decil %>% mutate(por_alimento= alimentos/ing_cor, por_vestido= vestido/ing_cor, 
+                                     por_vivienda= vivienda/ing_cor, por_salud=salud/ing_cor, 
+                                     por_transporte= transporte/ing_cor, por_comunica=comunica/ing_cor,
+                                     por_educacion=educacion/ing_cor, por_esparci= esparci/ing_cor)
+
+enigh_design2 <- hogar_3 %>% 
+    as_survey_design(ids = upm, weights = factor_hog, strata = est_dis)
+
+set.seed(7398731)
+enigh_boot2 <- enigh_design2 %>% 
+    as_survey_rep(type = "subbootstrap", replicates = 500)
+
+# Calculamos el porcentaje de gasto en alimentos por decil
+gasto_alimento<- enigh_boot2  %>% group_by(decil_number) %>% summarise(media_alimentos = survey_mean(por_alimento, na.rm=TRUE))
+#### La columna con _SE indica el error estandar
+
+# Calculamos el porcentaje de gasto en vestido por decil
+gasto_vestido<- enigh_boot2  %>% group_by(decil_number) %>% summarise(media_vestido = survey_mean(por_vestido, na.rm=TRUE))
+
+# Calculamos el porcentaje de gasto en vivenda por decil
+gasto_vivienda<- enigh_boot2  %>% group_by(decil_number) %>% summarise(media_vivienda = survey_mean(por_vivienda, na.rm=TRUE))
+
+# Calculamos el porcentaje de gasto en salud por decil
+gasto_salud<- enigh_boot2  %>% group_by(decil_number) %>% summarise(media_salud = survey_mean(por_salud, na.rm=TRUE))
+
+# Calculamos el porcentaje de gasto en educacion por decil
+gasto_educacion<- enigh_boot2  %>% group_by(decil_number) %>% summarise(media_educacion = survey_mean(por_educacion, na.rm=TRUE))
+
+# Calculamos el porcentaje de gasto en transporte por decil
+gasto_transporte<- enigh_boot2  %>% group_by(decil_number) %>% summarise(media_transporte = survey_mean(por_transporte, na.rm=TRUE))
+
+# Calculamos el porcentaje de gasto en comunica por decil
+gasto_comunica<- enigh_boot2  %>% group_by(decil_number) %>% summarise(media_comunica = survey_mean(por_comunica, na.rm=TRUE))
+
+# Calculamos el porcentaje de gasto en esparci por decil
+gasto_esparci<- enigh_boot2  %>% group_by(decil_number) %>% summarise(media_esparci = survey_mean(por_esparci, na.rm=TRUE))
+
+
+```
+
+4. Realiza una gráfica con las estimaciones del paso 3.
+
+```{r echo=FALSE, message=FALSE,warning=FALSE}
+
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{r}
+p1<-ggplot(data = gasto_alimento, aes(x = decil_number, y = media_alimentos)) +
+  geom_bar(stat = "identity", position = "dodge") + ggtitle("% alimentos x decil")
+
+p2<-ggplot(data = gasto_vestido, aes(x = decil_number, y = media_vestido)) +
+  geom_bar(stat = "identity", position = "dodge") + ggtitle("% vestido x decil")
+
+p3<-ggplot(data = gasto_vivienda, aes(x = decil_number, y = media_vivienda)) +
+  geom_bar(stat = "identity", position = "dodge") + ggtitle("% vivienda x decil")
+
+p4<-ggplot(data = gasto_salud, aes(x = decil_number, y = media_salud)) +
+  geom_bar(stat = "identity", position = "dodge") + ggtitle("% salud x decil")
+
+p5<-ggplot(data = gasto_educacion, aes(x = decil_number, y = media_educacion)) +
+  geom_bar(stat = "identity", position = "dodge") + ggtitle("% educacion x decil")
+
+p6<-ggplot(data = gasto_transporte, aes(x = decil_number, y = media_transporte)) +
+  geom_bar(stat = "identity", position = "dodge") + ggtitle("% transporte x decil")
+
+p7<-ggplot(data = gasto_comunica, aes(x = decil_number, y = media_comunica)) +
+  geom_bar(stat = "identity", position = "dodge") + ggtitle("% comunica x decil")
+
+p8<-ggplot(data = gasto_esparci, aes(x = decil_number, y = media_esparci)) +
+  geom_bar(stat = "identity", position = "dodge") + ggtitle("% esparci x decil")
+
+multiplot(p1, p2, p3, p4,p5,p6,p7,p8,cols=3)
+```
+
+### 2. Cobertura de intervalos
+Vamos a retomar de simulación que vimos en clase, donde comparamos los intervalos de 
+confianza construidos con el método de percentiles y usando la aproximación 
+normal ($\hat{\theta} \pm 1.96 \hat{se}$). 
+
+Generamos una muestra de tamaño 30 (en clase era 10) de una distribución normal 
+estándar, el parámetro de interés es $e^{\mu}$ donde $\mu$ es la media poblacional.
+
+1. Construye intervalos de confianza con el método de percentiles y de 
+aproximación normal.
+
+```{r}
+set.seed(766587)
+x <- rnorm(30)
+
+boot_sim_exp <- function(){
+  x_boot <- sample(x, size = 30, replace = TRUE)
+  exp(mean(x_boot))
+}
+
+theta_boot <- rerun(1000, boot_sim_exp()) %>% flatten_dbl()
+theta_boot_df <- data_frame(theta_boot)
+
+ggplot(theta_boot_df, aes(x = theta_boot)) +
+    geom_histogram(fill = "gray30", binwidth = 0.08) 
+ggplot(theta_boot_df) +
+    geom_abline(color = "red", alpha = 0.5) +
+    stat_qq(aes(sample = theta_boot), 
+        dparams = list(mean = mean(theta_boot), sd = sd(theta_boot))) 
+
+# Normal
+round(exp(mean(x)) - 1.96 * sd(theta_boot), 2)
+round(exp(mean(x)) + 1.96 * sd(theta_boot), 2)
+# Percentil
+round(quantile(theta_boot, prob = 0.025), 2)
+round(quantile(theta_boot, prob = 0.975), 2)
+
+```
+2. ¿Cuál tiene mejor cobertura? Realiza 500 simulaciones de vectores de tamaño
+30 de una normal estándar, para cada simulación calcula $\hat{\theta}$ y calcula 
+el porcentaje de realizaciones que caen dentro de cada intervalo de confianza.
+```{r}
+library(printr)
+set.seed(766587)
+
+
+simul<-function(){
+  x <- rnorm(30,0,1)
+  theta<-mean(x)
+  return(comma(q_mean <- quantile(x, probs = c(0.025, 0.05, 0.1, 0.9, 0.95, 0.975))))
+  
+  
+}
+
+resultado<-rerun(500,simul())
+
+df= as.data.frame(t(as.data.frame(resultado)))
+rownames(df)<-NULL
+intervalos<-as.data.frame(colnames(df)[apply(df,1,which.max)])
+names(intervalos)<-c("interval")
+intervalos<-intervalos %>% group_by(interval) %>%
+                      summarise(n=n(),
+                                prob=n/500)
+
+intervalos
+
+        
+```
+
+
+
