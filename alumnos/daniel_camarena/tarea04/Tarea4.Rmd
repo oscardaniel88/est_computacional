@@ -1,0 +1,178 @@
+---
+title: "Tarea 4"
+author: "Daniel Camarena"
+date: "5/9/2017"
+output: html_document
+---
+
+# Tarea 4
+
+Contesta las siguientes preguntas (si lo deseas puedes usar simulación para responder):
+
+1. Una baraja regular de 52 cartas se divide de manera aleatoria en 4 pilas de 13 cartas cada una. Calcula la probabilidad de que cada pila tenga exactamente un as. 
+
+```{r}
+library(tidyverse)
+prob <- function(){
+cards <-
+  as.character(outer(
+    c(2:10, "J", "Q", "K", "A")
+    , c("S", "H", "D", "C")
+    , paste
+    , sep = "_"
+  ))
+
+deckThisHand <- sample(cards)
+currCardToDeal <- 1
+
+nToDeal <- 13
+hand1 <- deckThisHand[currCardToDeal:(currCardToDeal+nToDeal-1)]
+currCardToDeal <- currCardToDeal+nToDeal
+hand2 <- deckThisHand[currCardToDeal:(currCardToDeal+nToDeal-1)]
+currCardToDeal <- currCardToDeal+nToDeal
+hand3 <- deckThisHand[currCardToDeal:(currCardToDeal+nToDeal-1)]
+currCardToDeal <- currCardToDeal+nToDeal
+hand4 <- deckThisHand[currCardToDeal:(currCardToDeal+nToDeal-1)]
+currCardToDeal <- currCardToDeal+nToDeal
+
+if(length(grep("A",hand1,value = TRUE))==1 && length(grep("A",hand2,value = TRUE))==1 && length(grep("A",hand3,value = TRUE))==1 && length(grep("A",hand4,value = TRUE))==1){
+  result <- TRUE 
+} else {
+    result <- FALSE
+  }
+return(result)
+}
+
+n <-100000
+result <- rerun(n, prob())
+prob<-Reduce("+", result)/n
+print(paste("La probabilidad de que cada pila tenga exactamente un as es",prob))
+```
+
+
+2. Se ruedan dos dados justos. ¿Cuál es la porbabilidad condicional de que el segundo resulte en 6 dado que los dados cayeron en números distintos?
+
+```{r}
+roll_dices <- function(){
+dice1 <- c("1","2","3","4","5","6")
+dice2 <- c("1","2","3","4","5","6")
+
+throw1 <- sample(dice1,1)
+throw2 <- sample(dice2,1)
+while (throw1==throw2) {
+  throw2 <- sample(dice2,1)
+  throw1 <- sample(dice1,1)
+}
+
+if(throw2=="6"){
+  result<-TRUE
+}else{
+  result <-FALSE
+}
+
+return(result)
+}
+
+n <-100000
+result<- rerun(n, roll_dices())
+prob<-Reduce("+", result)/n
+
+
+print(paste("La probabilidad de que el segundo dado tenga un 6 dado a que los dos son diferentes es",prob))
+```
+3. Revolvemos una baraja de cartas y la partimos en dos mitades (26 cartas en cada parte). Extraemos una carta de la primera mitad y resulta en As. Colocamos el As en la segunda mitad de la baraja, revolvemos las 27 cartas correspondientes y seleccionamos una carta. ¿Cuál es la probabilidad de que hayamos seleccionado un As? Pista: condiciona en si seleccionamos o no la carta que añadimos.
+
+```{r}
+library(tidyverse)
+shuffle <- function(){
+deck<- as.character(outer(
+    c(2:10, "J", "Q", "K", "A")
+    , c("S", "H", "D", "C")
+    , paste
+    , sep = "_"
+  ))
+
+##tomamos un as
+ace_index <- grep("A", deck)
+ace <- deck[ace_index[1]]
+
+##quitamos el as del maso para luego dividir
+deck <- deck[-ace_index[1]]
+
+##separamos las cartas
+deck <- sample(deck)
+deck1 <- deck[1:25]
+deck2 <-deck[26:length(deck)]
+
+##colocamos el as en el segundo maso
+deck2 <- c(deck2,ace)
+card <- sample(deck2,1)
+if(length(grep("A", card, value = TRUE))==1){
+    result <- TRUE
+  } else{
+    result <- FALSE
+  } 
+
+return(result)
+}
+
+n<- 100000
+result <- rerun(n,shuffle())
+prob<-Reduce("+", result)/n
+print(paste("La probabilidad de que la carta elegida sea un as es",prob))
+```
+
+
+4. Resuelve de manera analítica el problema de las catafixias de Chabelo.
+
+```{r}
+library(tidyverse)
+  
+change <- function(){
+doors <- c("car","goat","goat")
+names(doors) <- c("1","2","3")
+doors<- sample(doors)
+player<-doors[1]
+doors<-doors[-1]
+presenter <- doors[which(doors == "goat")[1]]
+doors <- doors[-which(doors=="goat")[1]]
+new_door <- doors
+if(new_door == "car"){
+  result = TRUE
+}else{
+  result = FALSE
+}
+return(result)
+}
+
+no_change <- function(){
+doors <- c("car","goat","goat")
+names(doors) <- c("1","2","3")
+doors<- sample(doors)
+player<-doors[1]
+doors<-doors[-1]
+presenter <- doors[which(doors == "goat")[1]]
+doors <- doors[-which(doors=="goat")[1]]
+if(player == "car"){
+  result = TRUE
+}else{
+  result = FALSE
+}
+return(result)
+}
+
+n <-100000
+result_change <- rerun(n, change())
+prob<-Reduce("+", result_change)/n
+
+result_no_change <- rerun(n, no_change())
+prob2<-Reduce("+", result_no_change)/n
+
+print(paste("La probabilidad de ganar cambiando la puerta es",prob))
+print(paste("La probabilidad de ganar sin cambiar la puerta es",prob2))
+```
+
+De manera análitica queda como sigue:
+[Arbol](images/Monty_Hall_Tree.png)
+
+
