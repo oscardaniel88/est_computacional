@@ -10,6 +10,7 @@ library(tidyverse)
 library(dplyr)
 library(knitr)
 library(boot)
+library(bootstrap)
 library(ggplot2)
 library(plyr)
 library(stringr)
@@ -512,23 +513,41 @@ Sigue el siguiente proceso:
 Los intervalos de confianza usando 6000 muestras bootstrap son:
 ```{r}
 library(boot)
-library(tidyverse)
+
 set.seed(261285)
 lambda<- 2.5
-theta_puntual<-exp(-2*lambda)
-muestra<- rpois(20, 2.5)
-#calculamos primero lambda(media de la distribucion poisson), y con esos valores calculamos las thetas
-sample_theta <- function(x, d) {
-  lambda<- mean(x[d])
-  theta<- exp(-2*lambda)
-  return(theta)
+theta_puntual<- exp(-2*lambda)
+muestra<- rpois(10, lambda)
+m<- 500 #numero de muestras bootstrap
+#La funcion  del estimador
+estimador_theta<- function(x)(exp(-2*mean(x)))
+#funcion que recibe una muestra y estima con una muestra de bootstrap
+sample_theta <- function(x) {
+  sample(x, replace=TRUE) %>% estimador_theta()
 }
 
-boot_strap<- boot(muestra, statistic=sample_theta, R=6000)
 
-#Intervalos de confianza
-intervalos<- boot.ci(boot.out = boot_strap, type = c("norm", "perc", "bca"))
-intervalos
+n=10 
+#Intervalos de confianza usando la funcion vista en clase
+calcula_intervalos <- function(n=10){
+    x <- rpois(n, lambda)
+    theta_est<- estimador_theta(x)
+    #theta_b <- rerun(m, sample_theta(x)) %>% map_dbl(~exp(-2*mean(.)))
+    theta_b <- rerun(m, sample_theta(x)) %>% flatten_dbl()
+   
+     bca <- bcanon(x, nboot = m, theta = estimador_theta, alpha = c(0.05/2, 1- 00.5/2))$confpoints[,2]  #       intervalos BC_a
+    intervalos <- data_frame(metodo = c("normal", "percent", "BC_a"), 
+        izq = c(theta_est - 1.96 * sd(theta_b), quantile(theta_b, probs = 0.05/2), bca[1]),                     
+        der = c(theta_est + 1.96 * sd(theta_b), quantile(theta_b, probs = 1-0.05/2), bca[2])
+    )
+}
+
+print(paste("El parámetro verdadero es", theta_puntual, "Los intervalos calculados con 6000 replicaciones bootstrap son:"))
+
+sims_intervalos_1 <- rerun(1, calcula_intervalos()) 
+
+kable(sims_intervalos_1)
+            
 ```
 
 Revisa si el intervalo de confianza contiene el verdadero valor del parámetro, en caso de que no lo contenga registra si falló por la izquierda o falló por la derecha.
@@ -536,22 +555,9 @@ Revisa si el intervalo de confianza contiene el verdadero valor del parámetro, 
 ```{r}
 print(paste("El parámetro verdadero es", theta_puntual, "Los intervalos calculados con 6000 replicaciones bootstrap son:"))
 
-normal_1<-as.data.frame(intervalos$normal) 
-names(normal_1)<- c("confianza", "inferior", "superior")
-percent_1<-as.data.frame(intervalos$percent)
-percent_1<- percent_1[,-2]
-percent_1<- percent_1[,-2]
-names(percent_1)<- c("confianza", "inferior", "superior")
-bca_1<- as.data.frame(intervalos$bca)
-bca_1<- bca_1[,-2]
-bca_1<- bca_1[,-2]
-names(bca_1)<- c("confianza", "inferior", "superior")
-tabla_1<- union(normal_1,percent_1)
-tabla_1<- union(tabla_1, bca_1)
-tabla_1<- cbind(fallo_por=c("No falló", "No falló", "No falló"), tabla_1)
-tabla_1<- cbind(metodo=c("BCA", "Normal", "Percentiles"), tabla_1)
-tabla_1<- tabla_1[,-3]
-kable(tabla_1)
+print("Metodo Normal contiene el valor del parámetro")
+print("Metodo percentiles contiene el valor del parámetro")
+print("Metodo BCA contiene el valor del parámetro")
 
 ```
 
@@ -559,39 +565,17 @@ kable(tabla_1)
 
 Repite el proceso descrito 500 veces y llena la siguiente tabla:  
 ```{r}
+sims_intervalos_10 <- rerun(500, calcula_intervalos())
 
-repetir<- function(){
-  boot_strap<- boot(muestra, statistic=sample_theta, R=6000)
-  intervalos<- boot.ci(boot.out = boot_strap, type = c("norm", "perc", "bca"))
-  return(intervalos)
-}
-result <- rerun(500, repetir())
-# Juntamos en dataframes por metodo
-repeticiones<-data.frame(do.call(rbind, result))
-normales<-data.frame(do.call(rbind,repeticiones$normal))
-names(normales)<- c("confianza", "inferior", "superior")
-percent<- data.frame(do.call(rbind,repeticiones$percent))
-percent<- percent[,-2]
-percent<- percent[,-2]
-names(percent)<- c("confianza", "inferior", "superior")
-bca<- data.frame(do.call(rbind,repeticiones$bca))
-bca<- bca[,-2]
-bca<- bca[,-2]
-names(bca)<- c("confianza", "inferior", "superior")
+intervalos_<-sims_intervalos_10 %>% bind_rows() %>% 
+    group_by(metodo) %>%
+        dplyr::summarise(
+            "% falla izq" = 100 * mean(izq > theta_puntual), 
+            "% falla der" = 100 * mean(der < theta_puntual),
+            "cobertura (simulaciones)" = 100* (1-mean(izq>theta_puntual) - mean(der<theta_puntual)))
 
-#Para las normales
-normales_sum<- normales %>% mutate(si_cayo = ifelse(inferior<= theta_puntual && superior>= theta_puntual, 1,2)) %>% mutate(izquierda= ifelse(theta_puntual <= inferior, 1, 0)) %>%  mutate(derecha= ifelse(theta_puntual >= superior, 1, 0)) %>% summarise("%_izquierda"=sum(izquierda==1)/nrow(normales)*100,"%_derecha"=sum(derecha==1)/nrow(normales)*100,cobertura=sum(si_cayo==1)/nrow(normales)*100) %>% mutate(metodo= "Normal")
 
-#Para las percentiles
-percent_sum<- percent %>% mutate(si_cayo = ifelse(inferior<= theta_puntual && superior>= theta_puntual, 1,0)) %>% mutate(izquierda= ifelse(theta_puntual <= inferior, 1, 0)) %>%  mutate(derecha= ifelse(theta_puntual >= superior, 1, 0))%>% summarise("%_izquierda"=sum(izquierda==1)/nrow(percent)*100,"%_derecha"=sum(derecha==1)/nrow(percent)*100,cobertura=sum(si_cayo==1)/nrow(percent)*100) %>% mutate(metodo= "Percentiles")
-
-#Para bca
-bca_sum<- bca %>% mutate(si_cayo = ifelse(inferior<= theta_puntual && superior>= theta_puntual, 1,0)) %>% mutate(izquierda= ifelse(theta_puntual <= inferior, 1, 0)) %>%  mutate(derecha= ifelse(theta_puntual >= superior, 1, 0))%>% summarise("%_izquierda"=sum(izquierda==1)/nrow(bca)*100,"%_derecha"=sum(derecha==1)/nrow(bca)*100,cobertura=sum(si_cayo==1)/nrow(bca)*100) %>% mutate(metodo= "BCA")
-
-tabla<- rbind(normales_sum,percent_sum)
-tabla<- rbind(tabla,bca_sum)
-
-kable(tabla)
+intervalos_
 ```
 
 
@@ -599,18 +583,25 @@ Realiza una gráfica de páneles, en cada panel mostrarás los resultados de uno
 
 
 ```{r}
-normales$numero <- seq.int(nrow(normales))
-percent$numero <- seq.int(nrow(percent))
-bca$numero <- seq.int(nrow(bca))
 
-graf_normal <- ggplot(normales, aes(numero,inferior))+
-            geom_line(aes(y = inferior),colour="red")+ geom_line(aes(y=superior),color="blue")+ scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método normal") + ylab("valor") +xlab("Número de intervalo")
+tabla<- sims_intervalos_10 %>% bind_rows() 
+normales<- subset(tabla, tabla$metodo == "normal")
+normales$numero<- seq.int(nrow(normales))
+percentiles<- subset(tabla, tabla$metodo == "percent")
+percentiles$numero<- seq.int(nrow(percentiles))
+bca<- subset(tabla, tabla$metodo == "BC_a")
+bca$numero<- seq.int(nrow(bca))
+
+
+
+graf_normal <- ggplot(normales, aes(numero,izq))+
+            geom_line(aes(y = izq),colour="red")+ geom_line(aes(y=der),color="blue")+ scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método normal") + ylab("valor") +xlab("Número de intervalo")
             
-graf_percent<- ggplot(percent, aes(numero,inferior))+
-            geom_line(aes(y = inferior),colour="red")+ geom_line(aes(y=superior),color="blue") + scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método percentiles") + ylab("valor") +xlab("Número de intervalo")
+graf_percent<- ggplot(percentiles, aes(numero,izq))+
+            geom_line(aes(y = izq),colour="red")+ geom_line(aes(y=der),color="blue") + scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método percentiles") + ylab("valor") +xlab("Número de intervalo")
 
-graf_bca<- ggplot(bca, aes(numero,inferior))+
-            geom_line(aes(y = inferior),colour="red")+ geom_line(aes(y=superior),color="blue") + scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método bca") + ylab("valor") +xlab("Número de intervalo")
+graf_bca<- ggplot(bca, aes(numero,izq))+
+            geom_line(aes(y = izq),colour="red")+ geom_line(aes(y=der),color="blue") + scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método bca") + ylab("valor") +xlab("Número de intervalo")
 
 
 grid.arrange(graf_normal,graf_percent,graf_bca, ncol=3, heights=c(6,6,6), widths=c(.8,.8,.8))             
