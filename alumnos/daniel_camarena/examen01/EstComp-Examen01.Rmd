@@ -1,0 +1,622 @@
+---
+title: "Examen01"
+author: "Daniel Camarena, Maximiliano Alvarez"
+date: "27 de septiembre de 2017"
+output: html_document
+---
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+library(tidyverse)
+library(dplyr)
+library(knitr)
+library(boot)
+library(ggplot2)
+library(plyr)
+library(stringr)
+library(gridExtra)
+``` 
+
+**Instrucciones: Resuelve las siguientes preguntas, tus respuestas deben ser claras y debes incluir tus procedimientos/código de manera ordenada y comentado.**
+
+## 1 Probabilidad. 
+
+Puedes usar simulación o encontrar la respuesta de manera analítica (incluye procedimiento).
+
+a. Una caja contiene 10 pares de aretes, si se seleccionan 8 aretes.
+
+* ¿Cuál es el epacio de resultados?
+El espacio de resultados es el número de pares completos
+
+* ¿Cuál es la probabilidad de que no se seleccione ningún par?
+```{r warning=FALSE, error=FALSE, message=FALSE}
+#Esta funcion samplea los aretes y encuentra los pares en la muestra elegida. Si la muestra elegida contiene al menos un par regresa falso, de lo contrario regresa verdadero
+incomplete_pairs <- function(){
+  earings<-c(1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,0,0)
+  earings_sample<-sample(earings,8)
+  earings_sample <- as.data.frame(earings_sample)
+  earings_pairs <- earings_sample %>% group_by(earings_sample) %>% 
+                                  dplyr::summarise(n=n())
+  pares<-earings_pairs$n
+  if (2 %in% pares){
+    result <- FALSE
+  }else{
+    result <- TRUE
+  }
+  return(result)
+}
+
+n <-10000
+x <- rerun(n,incomplete_pairs())
+prob<-Reduce("+", x)/n
+print(paste("La probabilidad de no seleccionar ningun par es",prob * 100,"%"))
+
+
+```
+
+* ¿Cuál es la probabilidad de que se seleccione exactamente un par completo?
+```{r warning=FALSE, error=FALSE, message=FALSE}
+#Esta funcion regresa 1 si la seleccion contiene unicamente un par de aretes, de lo contrario regresa 0
+one_pair <- function(){
+  earings<-c(1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,0,0)
+  earings_sample<-sample(earings,8)
+  earings_sample <- as.data.frame(earings_sample)
+  earings_pairs <- earings_sample %>% group_by(earings_sample) %>% 
+                                  dplyr::summarise(n=n())
+  pares<-earings_pairs$n
+  if (length(pares[pares==2])==1){
+    result <- TRUE
+  }else{
+    result <- FALSE
+  }
+  return(result)
+}
+  
+n <-10000
+x <- rerun(10000, one_pair())
+prob<-Reduce("+", x)/n
+print(paste("La probabilidad de seleccionar exactamente un par es",prob * 100,"%"))
+```
+
+
+b. A y B juegan una serie de juegos. En cada juego A gana con probabilidad 0.4 y B con probabilidad 0.6 (independiente de lo ocurrido en los otros juegos). Paran de jugar cuando el número total de juegos ganados de un jugador es dos juegos más que el total de juegos ganados por el otro jugador:
+
+* ¿Cuál es el espacio de resultados?
+El espacio de resultados esta definido por el número de juegos ganados por A y el numero de juegos ganados por B
+
+* Encuentra la probabilidad de que se jueguen 4 juegos en total.
+```{r warning=FALSE, error=FALSE, message=FALSE}
+
+
+#Generador de variable aleatoria que define quien gana un juego
+win_game<-function(pa, pb){
+  u <- runif(1)
+  if(u<pa){
+    result <- "A"
+  }else{
+    if(u>=pa & u<(pa+pb)){
+      result <-"B"
+    }
+  }
+  return(result)
+}
+
+#Simula juegos, lleva contadores de qué jugador gana y lleva un contador de juegos jugados que es lo que regresa
+simulate_games<-function(){
+  pa<-0.4
+  pb<-0.6
+  countA<-0
+  countB<-0
+  countGames<-0
+  winner <- win_game(pa,pb)
+  countGames<-countGames+1
+  if(winner=="A"){
+    countA<-countA + 1
+  }else{
+    countB<-countB + 1
+  }
+  while(!abs(countA-countB)==2){
+    winner <- win_game(pa,pb)
+    countGames<-countGames+1
+    if(winner=="A"){
+      countA<-countA + 1
+    }else{
+     countB<-countB + 1
+    }
+  }
+  return(countGames)
+}
+
+n<-100000
+x<-rerun(n,simulate_games()) %>% flatten_dbl()
+prob <- (length(x[x==4])/n)*100
+
+print(paste("La probabilidad de que se juegen exactamente 4 juegos es",prob,"%"))
+```
+* Encuentra la probabilidad de que A gane la serie.
+```{r warning=FALSE, error=FALSE, message=FALSE}
+
+
+#Generador de variable aleatoria que define quien gana un juego
+win_game<-function(pa, pb){
+  u <- runif(1)
+  if(u<pa){
+    result <- "A"
+  }else{
+    if(u>=pa & u<(pa+pb)){
+      result <-"B"
+    }
+  }
+  return(result)
+}
+
+
+#Simula juegos, lleva contadores de qué jugador gana y regresa al ganador de cada serie
+get_winner<-function(){
+  pa<-0.4
+  pb<-0.6
+  countA<-0
+  countB<-0
+  winner <- win_game(pa,pb)
+  if(winner=="A"){
+    countA<-countA + 1
+  }else{
+    countB<-countB + 1
+  }
+  while(!abs(countA-countB)==2){
+    winner <- win_game(pa,pb)
+    if(winner=="A"){
+      countA<-countA + 1
+    }else{
+     countB<-countB + 1
+    }
+  }
+  if(countA > countB){
+    winner <- "A"
+  }else{
+    winner <- "B"
+  }
+  return(winner)
+}
+
+n<-100000
+x <- rerun(n,get_winner()) %>% flatten_chr()
+prob <- (length(x[x=="A"])/n)*100
+print(paste("La probabilidad de que gane A es", prob, "%"))
+
+```
+
+
+## 2 Bootstrap
+
+La base de datos amis (publicada por G. Amis) contiene información de velocidades de coches en millas por hora, las mediciones se realizaron en carreteras de Cambridgeshire, y para cada carretera se realizan mediciones en dos sitios. Mas aún, las mediciones se realizaron en dos ocasiones, antes y después de que se instalara una señal de alerta (de dismunición de velocidad), esta señal se erigió únicamente en uno de los dos sitios de cada carretera.La cantidad de interés es el cambio medio relativo de velocidad en el cuantil 0.85. Se eligió esta cantidad porque el objetivo de la señal de alerta es disminuir la velocidad de los conductores más veloces.
+
+Variables: 
+
+* speed: velocidad de los autos en mph 
+* period: periodo en que se hicieron las mediciones 1 indica antes de la señal, 2 cuando ya había señal 
+* pair: carretera en que se hizo la medición
+
+a. ¿Las observaciones conforman una muestra aleatoria? Explica tu respuesta y en caso de ser negativa explica la estructura de los datos
+```{r,warning=FALSE, message = FALSE}
+# cargamos los datos
+amis <- read_csv("datos/amis.csv", col_types = "ddddd", col_names = c("obs", "speed", "period", "warning", "pair"), skip = 1)
+
+# vista de los datos
+kable(head(amis))
+
+# observamos la composición de la muestra
+kable(amis %>% 
+        group_by(warning, period) %>% 
+        dplyr::count())
+```
+
+Con lo anterior podemos observar que cada tipo de observación, tomando en cuenta las variables *period* y  *warning*, tiene el mismo número de observaciones dentro de la muestra.
+
+Cuando sea necesario hacer muestreo, será necesario considerar estas distinciones, para mantener la *equiprobabilidad* de los datos de la muestra, tomando en consideración las variables discriminantes.
+
+b. El estadístico de interés se puede escribir como
+
+$$\eta=\frac{1}{m}\Sigma[(\eta_{a1}-\eta_{b1})-(\eta_{a0}-\eta_{b0})]$$
+
+donde $\eta_{a1}$, $\eta_{b1}$ corresponden a los cuartiles 0.85 de la distribución de velocidad en los sitios en los que se colocó la señal de alerta, ($a$ corresponde a las mediciones antes de la señal y $b$ después) y $\eta_{a0}$, $\eta_{b0}$ son los correspondientes para los sitios sin alerta, $m$ denota el número de carreteras. **Calcula el estimador *plug-in* de $\eta$.**
+```{r warning=FALSE, message=FALSE}
+# manipulamos la base para poder obtener los cuantiles
+cuartiles <- amis %>% 
+  dplyr::group_by(pair, warning, period) %>% 
+  dplyr::summarise(q_85 = quantile(speed, probs = 0.85))
+
+# calculamos el número de carreteras
+m <- length(unique(amis$pair))
+
+# calculamos el estimador plug-in
+eta_plugin <- cuartiles %>% 
+  dplyr::mutate(q_85 = if_else(period == 2, -q_85, q_85)) %>% 
+  dplyr::group_by(pair, warning) %>% 
+  dplyr::summarise(q_85 = sum(q_85)) %>% 
+  dplyr::mutate(q_85 = if_else(warning == 1, -q_85, q_85)) %>%
+  dplyr::summarise(q_85 = sum(q_85)) %>% 
+  dplyr::summarise(eta = sum(q_85) / m) %>% 
+  as.double()
+
+print(paste("Estimador plugin de eta",eta_plugin))
+```
+
+
+
+c. Genera B=3000 replicaciones bootstrap de η y realiza un histograma. Pista: 1) considera tu respuesta de a) para tomar las muestras bootstrap, 2) hay muchas maneras de resolver esta pregunta, sin embargo, algunas funciones que te pueden resultar útiles son ldply y rdply (de plyr), do.call, group_by, mutate y summarise (de dplyr), spread (tidyr). También puedes usar los paquetes boot ó bootstrap si lo deseas.
+```{r warning=FALSE, message=FALSE}
+# generamos la muestras y calculamos los cuantiles
+eta_boot <- function(){
+  muestra <- amis %>% 
+  dplyr::group_by(pair, warning, period) %>% 
+  sample_n(., size = n, replace = TRUE) %>% 
+  dplyr::summarise(q_85 = quantile(speed, probs = 0.85))
+
+  # calculamos el estimador eta
+  eta <- muestra %>% 
+  dplyr::mutate(q_85 = if_else(period == 2, -q_85, q_85)) %>% 
+  dplyr::group_by(pair, warning) %>% 
+  dplyr::summarise(q_85 = sum(q_85)) %>% 
+  dplyr::mutate(q_85 = if_else(warning == 1, -q_85, q_85)) %>%
+  dplyr::summarise(q_85 = sum(q_85)) %>% 
+  dplyr::summarise(eta = sum(q_85) / m) %>% 
+  as.double()
+}
+
+# Tamaño de cada muestra
+n <- 100
+# definimos el número de iteraciones
+b <- 3000
+
+# generamos las iteraciones necesarias de eta
+eta <- rerun(b, eta_boot()) %>% flatten_dbl()
+
+# creamos el histograma de los valores de eta
+eta %>% 
+  as.data.frame(.) %>% 
+  ggplot(aes(.)) +
+  geom_histogram(binwidth = .05, fill = "red", alpha = .5) +
+  geom_vline(xintercept = eta_plugin, color = "black")
+```
+
+d. **Genera intervalos de confianza usando la aproximación normal y percentiles.** Comparalos y en caso de encontrar diferencias explica a que se deben.
+
+```{r warning=FALSE, message=FALSE}
+# calculamos el intervalo de confianza normal
+low_n <- eta_plugin - 1.96 * sd(eta)
+high_n <- eta_plugin + 1.96 * sd(eta)
+print(paste("Intervalo normal: [", round(low_n, 3), ", ", round(high_n, 3), "]"), sep = "")
+
+# calculamos el intervalo de confianza por percentiles
+low_p <- quantile(eta, prob = 0.025)
+high_p <- quantile(eta, prob = 0.975)
+print(paste("Intervalo percentil: [", round(low_p, 3), ", ", round(high_p, 3), "]"), sep = "")
+```
+## 3 Manipulación de datos y Bootstrap
+
+La bioequivalencia es un término utilizado en farmacocinética para evaluar la equivalencia terapéutica entre dos formulaciones de un medicamento que contiene el mismo principio activo o fármaco. Cuando un farmacéutica cambia una fórmula o desarrolla una nueva presentación de un medicamento ya disponible al público, requiere aprobación de la FDA para poder distribuirlo, para lograr esta aprobación debe demostrar que el nuevo medicamento es bioequivalente al medicamento ya aprobado, es así que se diseñan ensayos clínicos donde se compara la respuesta de los participantes al recibir las distintas formulaciones del medicamento.
+
+En este ejercicio analizarás la bioequivalencia de una nueva tableta de Cimetidine de 800 mg en relación a tabletas aprovadas de 400 mg. En el ensayo clínico participaron 24 voluntarios saludables, cada uno se asignó de manera aleatoria para recibir la formulación de 800 mg (formulación a prueba) o dos tabletas de 400 mg (formulación referencia). Se recolectaron muestras de sangre antes de la dosis y durante las siguientes 24 horas.
+
+* Lee los datos cimetidine_raw, las variables son: formulation indica si la observación corresponde a formulación de refernecia o de prueba, subj corresponde al sujeto, seq toma dos valores 1 indica que el sujeto se eavluó tomando la formulación de tratamiento primero y después la de referencia, 2 indica el caso contrario. prd indica el periodo (1 o 2) y las variables HRXX indican la medición (concentración de cimeditine en mCG/ml) para la hora XX (HR0 corresponde a la hora cero, HR05 a media hora, HR10 a una hora,…, HR240 a 24 horas). Desafortunadamente estos datos crudos están truncados y para algunos sujetos (1, 3, 5, 8, 9, 12, 16, 17, 19, 22, 23) no tenemos las mediciones del tratamiento de referencia, sin embargo, podemos usar la información disponible para entender como se calculan las métricas. Para la parte final usaremos una tabla de datos agregados que sí está completa.
+
+```{r warning=FALSE, message=FALSE}
+
+#cargamos los datos
+cimeditine<-read_delim("datos/cimeditine_raw.txt", delim="\t", col_names = c("formulation","subj","seq","prd","HR0","HR05","HR10", "HR15","HR20","HR30","HR40","HR60","HR80","HR100","HR120","HR180","HR240"), skip = 1)
+```
+
+
+* ¿cumplen los principios de los datos limpios?, En caso de que no los cumplan limpialos y explica que fallaba. Imprime las primeras líneas de los datos limpios (si ya estaban limpios entonces los datos originales).
+
+No cumplen los principios de los datos limpios, para que esto suceda necesitamos que cada columna en el dataset sea una variable y cada renglón sea una observación. La forma en la que son presentados estos datos no es asi, debemos transformar algunas columnas en renglones (por ejemplo la concentración por hora)
+
+```{r warning=FALSE, message=FALSE}
+#Limpiamos los datos... tampoco estaban tan mal...
+cimeditine_tidy <- cimeditine %>% gather(hour,value,5:17)
+cimeditine_tidy$hour <-as.numeric(str_extract(cimeditine_tidy$hour, "[0-9]+"))/10
+head(cimeditine_tidy)
+```
+
+Grafica la concentración del medicamento por hora. Debes graficar en el eje horizontal la hora, en el eje vertical la concentración para cada persona, bajo cada tratamiento. Un ejemplo de lo que debes hacer es esta gráfica, con la diferencia que la curva de Wikipedia es el promedio sobre todos los individuos y tu graficarás una para cada uno.
+
+```{r fig.width=14, fig.height=12}
+
+#Graficamos los datos, usamos facet_wrap para poner una grafica por cada sujeto
+p1<-ggplot(cimeditine_tidy, aes(x=hour,y=value))
+p1 <- p1 + geom_line(aes(color=factor(formulation)))
+p1 <- p1 + facet_wrap(~subj)
+p1
+
+
+```
+
+Podemos ver que en la mayoria de los casos el tratamiento y la referencia son similaries
+
+Para comprobar bioequivalencia la FDA solicita que el medicamento de prueba tenga un comportamiento similar al del medicamento de referencia. Para ello se compara la máxima concentración de medicamento (CMAX), el tiempo que tarda el individuo en alcanzar las concentración máxima en sangre (TMAX), y el área bajo la curva de concentración contra tiempo (AUC, que acabas de graficar). En particular para que la FDA concluya bioequivalencia se requiere que para cada medición (CMAX, TMAX y AUC) un intervalo de 90% de confianza para el cociente μT/μR de la media del tratamiento de prueba μT y la media de referencia μR esté contenido en el intervalo (80%,125%). En este ejercicio usarás bootstrap para calcular un intervalo de confianza para el cociente de las medias de AUC.
+
+* Calcula el AUC para cada individuo en cada tratamiento disponible, usa la fórmula de área trapezoidal:
+```{r warning=FALSE, message=FALSE}
+
+#Vamos a dividir los set en dos: Test (t) y referencia (r) para que no se haga un batidillo
+#vamos a usar lag para que sea mas facil
+auc_1_t<-cimeditine_tidy  %>% filter(formulation == 'T') %>% 
+                         select(formulation,subj,hour,value) %>% 
+                         arrange(hour) %>% 
+                         group_by(subj) %>%
+                         mutate(auc_value =lag(value,n=1,default=0, order_by=subj),
+                                auc_hour=lag(hour,n=1,default=0, order_by=subj),
+                                auc=(value+auc_value)*(hour-auc_hour)/2)
+
+auc_2_t <- auc_1_t %>% na.omit() %>% 
+         select(formulation,subj,auc) %>% 
+         group_by(formulation,subj) %>% 
+         dplyr::summarise(auc=sum(auc))
+
+auc_1_r<-cimeditine_tidy  %>% filter(formulation == 'R') %>% 
+                         select(formulation,subj,hour,value) %>% 
+                         arrange(hour) %>% 
+                         group_by(subj) %>%
+                         mutate(auc_value =lag(value,n=1,default=0, order_by=subj),
+                                auc_hour=lag(hour,n=1,default=0, order_by=subj),
+                                auc=(value+auc_value)*(hour-auc_hour)/2)
+
+auc_2_r <- auc_1_r %>% na.omit() %>% 
+         select(formulation,subj,auc) %>% 
+         group_by(formulation,subj) %>% 
+         dplyr::summarise(auc=sum(auc))
+
+#unimos los dos sets
+auc<-union(auc_2_t,auc_2_r)
+                   
+                  
+kable(auc)
+```
+
+
+* En estos últimos dos incisos usa los datos cimeditine_boot.csv, para el i-ésimo individuo subj tienes mediciones de AUC bajo tratamiento y referencia, denotemos a este par xi=(aucTi,aucRi), suponiendo que las xi se obuvieron de manera aleatoria de una distribución bivariada P, entonces la cantidad poblacional de interés es el parámetro θ=μT/μR. Calcula el estimador plug-in de θ.
+
+```{r warning=FALSE, message=FALSE}
+#Leemos los datos
+cimeditine_boot <- read_csv("datos/cimeditine_boot.csv")
+
+#Los ponemos de manera tal que sea mas facil trabajarlos, aunque Hadley se enoje....
+cimeditine_boot <- cimeditine_boot %>% select(Subject,Formulation,AUC) %>% 
+                   spread(Formulation, AUC)
+n<-length(unique(cimeditine_boot$Subject))
+mt<-mean(cimeditine_boot$T)
+mr<-mean(cimeditine_boot$R)
+
+theta_plugin<-mt/mr
+print(paste("El estimador plug-in de theta es",theta_plugin))
+
+```
+
+* Usa bootstrap para generar un intervalo del 90% de confianza para θ, ¿la nueva tableta cumple el criterio de bioequivalencia de la FDA?
+
+```{r warning=FALSE, message=FALSE}
+
+#Funcion que calcula las thetas usando bootstrap
+theta_boot<-function(){
+  n<-length(unique(cimeditine_boot$Subject))
+  test<-sample(cimeditine_boot$T,size=n, replace=TRUE)
+  reference<-sample(cimeditine_boot$R,size=n, replace = TRUE)
+  theta <- mean(test)/mean(reference)
+  return(theta)
+}
+
+thetas_boot <-rerun(1000,theta_boot()) %>% flatten_dbl()
+
+#intervalo de confianza usando metodo de percentiles
+lci<-round(quantile(thetas_boot,prob=0.05),2)
+hci<-round(quantile(thetas_boot,prob=0.95),2)
+print(paste("[",lci,",",hci,"]", "y nuestro estimador plugin es",theta_plugin, "entonces vemos que si es cubierto por el intervalo de confianza del 90% (percentiles) y por lo tanto cumple con el criterio de bioequivalencia de la FDA"))
+
+#intervalo de confianza usando aproximación normal (me la jugué pero al parecer si se distribuye de manera normal)
+li_norm<-round(theta_plugin - 1.645 * sd(thetas_boot),2)
+ls_norm<-round(theta_plugin + 1.645 * sd(thetas_boot),2)
+print(paste("[",li_norm,",",ls_norm,"]", "y nuestro estimador plugin es",theta_plugin, "entonces vemos que si es cubierto por el intervalo de confianza del 90% (normal) y por lo tanto cumple con el criterio de bioequivalencia de la FDA"))
+
+```
+
+## 4. Variables aleatorias y simulación
+
+Recuerda que una variable aleatoria $X$ tiene una distribución geométrica con parámetro $p$ si
+
+$$p_{X}(i)=P(X=i)=pq^{i-1}, i=1,2,..., q=1-p$$
+
+Notemos que $\sum_{i=1}^{j-1}P(X=i)=1-P(X\geq j-1)=1- q^{j-1}$ para $(j\geq 1)$. por lo que podemos generar un valor de $X$ generando un número aleatorio $U$ y seleccionando $j$ tal que $1-q^{j-1} \leq U \leq 1-q^j$
+Esto es, podemos definir $X$ como: $X=min\{j : (1-p)^j < 1-U\}$ usando que el logaritmo es una función monótona (i.e. $(a<b)$ implica $log(a)<log(b)$) obtenemos que podemos expresar $X$ como $X=min\big\{j : j \cdot log(q) < log(1-U)\big\}$ $=min\big\{j : j > log(U)/log(q)\big\}$ entonces $X= int\bigg(\frac{log(U)}{log(q)}\bigg)+1$ es geométrica con parámetro $p$.
+Ahora, sea $X$ el número de lanzamientos de una moneda que se requieren para alcanzar $r$ éxitos (soles) cuando cada lanzamiento es independiente, $X$ tiene una distribución binomial negativa.
+Una variable aleatoria $X$ tiene distribución binomial negativa con parámetros $(r,p)$ donde $r$ es un entero positivo y $0<p<r$ si $P(X=j)=\frac{(j-1)!}{(j-r)!(r-1)!}p^r(1-p)^{j-r}$.
+
+
+
+a. Recuerda la distribución geométrica **¿cuál es a relación entre la variable aleatoria binomial negativa y la geométrica?**
+
+La distribución geométrica es un caso especial de la distribución binomial negativa, cuando $r=1$.
+
+Aún más general, si $y_1,..,y_r$ son variables aleatorias independientes e idénticamente distribuidas con parámetro $p$, la suma $Z=\Sigma_{i=1}^rY_i$ se distribuye binomial negativa con parámetros $r, p$.
+
+b. Utiliza el procedimiento descrito para generar observaciones de una variable aleatoria con distribución geométrica y la relación entre la geométrica y la binomial negativa para generar simulaciones de una variable aleatoria con distribución binomial negativa (parámetro p = 0.4, r = 20). Utiliza la semilla 221285 (en R usa set.seed) y reporta las primeras 10 simulaciones obtenidas.
+
+```{r}
+# definimos la función para generar geométricas a partir de una uniforme
+rand_geom <- function(p){
+  x <- as.integer(log(runif(1))/log(1-p))+1
+  return(x)
+}
+
+# definimos la binomial negativa en términos de una geométrica
+rand_bn <- function(r, p){
+  x <- rerun(r, rand_geom(p)) %>% 
+    flatten_dbl() %>% 
+    sum()
+  return(x)
+}
+
+# usamos la relación entre ambas variables para generar una variable aleatoria binomial negativa
+p <- 0.4
+r <- 20
+n <- 10
+set.seed(221285)
+
+bin_neg <- rerun(n, rand_bn(r, p)) %>% 
+  flatten_dbl()
+
+bin_neg
+```
+
+c. Verifica la relación
+
+$$p_{j+1}=\frac{j(1−p)}{j+1−r}pj$$
+
+y úsala para generar un nuevo algoritmo de simulación, vuelve a definir la semilla y reporta las primeras 10 simulaciones.
+
+Para lo anterior, partimos de la definición de $p_{j+1}$
+
+$$p_{j+1}=\frac{(j+1-1)!}{(j+1-r)!(r-1)!}p^r(1-p)^{j+1-r}$$
+y, usando la propiedad de la función factorial $n!=n(n-1)!, n>0$ obtenemos
+
+$$p_{j+1}=\frac{j(j-1)!}{(j+1-r)(j-r)!(r-1)!}p^r(1-p)(1-p)^{j-r}$$
+
+y lo anterior, podemos reacomodarlo y reagruparlo para obtener
+
+$$p_{j+1}=\frac{j(1-p)}{(j+1-r)}\frac{(j-1)!}{(j-r)!(r-1)!}p^r(1-p)^{j-r}=\frac{j(1−p)}{j+1−r}pj$$
+
+con lo que queda verificada la relación.
+
+```{r}
+# Segundo algoritmo
+
+ 
+
+```
+
+
+d. Realiza 10,000 simulaciones usando cada uno de los algoritmos y compara el tiempo de ejecución.
+
+e. Genera un histogrma para cada algoritmo (usa 1000 simulaciones) y comparalo con la distribución construida usando la función de R dnbinom.
+
+
+##5. Cobertura de intervalos de confianza. 
+
+En este problema realizarás un ejercicio de simulación para comparar intervalos de confianza. Utiliza la función rpois (y la semilla 261285) para simular muestras de tamaño 20 de una distribución Poisson con parámetro λ=2.5, el estadístico de interés es θ=exp(−2λ)
+
+
+Sigue el siguiente proceso:
+
+1. Genera una muestra aleatoria de tamaño 10 una distribución Poisson con λ=2.5
+2. Genera 6000 muestras bootstrap y calcula intervalos de confianza del 95% para $\hat{\theta}$ usando 1) el método normal, 2) percentiles y 3) BC_a.
+
+Los intervalos de confianza usando 6000 muestras bootstrap son:
+```{r}
+library(boot)
+library(tidyverse)
+set.seed(261285)
+lambda<- 2.5
+theta_puntual<-exp(-2*lambda)
+muestra<- rpois(20, 2.5)
+#calculamos primero lambda(media de la distribucion poisson), y con esos valores calculamos las thetas
+sample_theta <- function(x, d) {
+  lambda<- mean(x[d])
+  theta<- exp(-2*lambda)
+  return(theta)
+}
+
+boot_strap<- boot(muestra, statistic=sample_theta, R=6000)
+
+#Intervalos de confianza
+intervalos<- boot.ci(boot.out = boot_strap, type = c("norm", "perc", "bca"))
+intervalos
+```
+
+Revisa si el intervalo de confianza contiene el verdadero valor del parámetro, en caso de que no lo contenga registra si falló por la izquierda o falló por la derecha.
+
+```{r}
+print(paste("El parámetro verdadero es", theta_puntual, "Los intervalos calculados con 6000 replicaciones bootstrap son:"))
+
+normal_1<-as.data.frame(intervalos$normal) 
+names(normal_1)<- c("confianza", "inferior", "superior")
+percent_1<-as.data.frame(intervalos$percent)
+percent_1<- percent_1[,-2]
+percent_1<- percent_1[,-2]
+names(percent_1)<- c("confianza", "inferior", "superior")
+bca_1<- as.data.frame(intervalos$bca)
+bca_1<- bca_1[,-2]
+bca_1<- bca_1[,-2]
+names(bca_1)<- c("confianza", "inferior", "superior")
+tabla_1<- union(normal_1,percent_1)
+tabla_1<- union(tabla_1, bca_1)
+tabla_1<- cbind(fallo_por=c("No falló", "No falló", "No falló"), tabla_1)
+tabla_1<- cbind(metodo=c("BCA", "Normal", "Percentiles"), tabla_1)
+tabla_1<- tabla_1[,-3]
+kable(tabla_1)
+
+```
+
+
+
+Repite el proceso descrito 500 veces y llena la siguiente tabla:  
+```{r}
+
+repetir<- function(){
+  boot_strap<- boot(muestra, statistic=sample_theta, R=6000)
+  intervalos<- boot.ci(boot.out = boot_strap, type = c("norm", "perc", "bca"))
+  return(intervalos)
+}
+result <- rerun(500, repetir())
+# Juntamos en dataframes por metodo
+repeticiones<-data.frame(do.call(rbind, result))
+normales<-data.frame(do.call(rbind,repeticiones$normal))
+names(normales)<- c("confianza", "inferior", "superior")
+percent<- data.frame(do.call(rbind,repeticiones$percent))
+percent<- percent[,-2]
+percent<- percent[,-2]
+names(percent)<- c("confianza", "inferior", "superior")
+bca<- data.frame(do.call(rbind,repeticiones$bca))
+bca<- bca[,-2]
+bca<- bca[,-2]
+names(bca)<- c("confianza", "inferior", "superior")
+
+#Para las normales
+normales_sum<- normales %>% mutate(si_cayo = ifelse(inferior<= theta_puntual && superior>= theta_puntual, 1,2)) %>% mutate(izquierda= ifelse(theta_puntual <= inferior, 1, 0)) %>%  mutate(derecha= ifelse(theta_puntual >= superior, 1, 0)) %>% summarise("%_izquierda"=sum(izquierda==1)/nrow(normales)*100,"%_derecha"=sum(derecha==1)/nrow(normales)*100,cobertura=sum(si_cayo==1)/nrow(normales)*100) %>% mutate(metodo= "Normal")
+
+#Para las percentiles
+percent_sum<- percent %>% mutate(si_cayo = ifelse(inferior<= theta_puntual && superior>= theta_puntual, 1,0)) %>% mutate(izquierda= ifelse(theta_puntual <= inferior, 1, 0)) %>%  mutate(derecha= ifelse(theta_puntual >= superior, 1, 0))%>% summarise("%_izquierda"=sum(izquierda==1)/nrow(percent)*100,"%_derecha"=sum(derecha==1)/nrow(percent)*100,cobertura=sum(si_cayo==1)/nrow(percent)*100) %>% mutate(metodo= "Percentiles")
+
+#Para bca
+bca_sum<- bca %>% mutate(si_cayo = ifelse(inferior<= theta_puntual && superior>= theta_puntual, 1,0)) %>% mutate(izquierda= ifelse(theta_puntual <= inferior, 1, 0)) %>%  mutate(derecha= ifelse(theta_puntual >= superior, 1, 0))%>% summarise("%_izquierda"=sum(izquierda==1)/nrow(bca)*100,"%_derecha"=sum(derecha==1)/nrow(bca)*100,cobertura=sum(si_cayo==1)/nrow(bca)*100) %>% mutate(metodo= "BCA")
+
+tabla<- rbind(normales_sum,percent_sum)
+tabla<- rbind(tabla,bca_sum)
+
+kable(tabla)
+```
+
+
+Realiza una gráfica de páneles, en cada panel mostrarás los resultados de uno de los métodos (normal, percentiles y BC_a), el eje x corresponderá al número de intervalo de confianza (1,...,500) y en el vertical graficarás los límites de los intervalos, es decir graficarás 2 líneas (usa geom_line) una corresponderá a los límites inferiores de los intervalos, y otra a los superiores.
+
+
+```{r}
+normales$numero <- seq.int(nrow(normales))
+percent$numero <- seq.int(nrow(percent))
+bca$numero <- seq.int(nrow(bca))
+
+graf_normal <- ggplot(normales, aes(numero,inferior))+
+            geom_line(aes(y = inferior),colour="red")+ geom_line(aes(y=superior),color="blue")+ scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método normal") + ylab("valor") +xlab("Número de intervalo")
+            
+graf_percent<- ggplot(percent, aes(numero,inferior))+
+            geom_line(aes(y = inferior),colour="red")+ geom_line(aes(y=superior),color="blue") + scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método percentiles") + ylab("valor") +xlab("Número de intervalo")
+
+graf_bca<- ggplot(bca, aes(numero,inferior))+
+            geom_line(aes(y = inferior),colour="red")+ geom_line(aes(y=superior),color="blue") + scale_y_continuous(limits=c(-.1,.15))+ ggtitle( "Método bca") + ylab("valor") +xlab("Número de intervalo")
+
+
+grid.arrange(graf_normal,graf_percent,graf_bca, ncol=3, heights=c(6,6,6), widths=c(.8,.8,.8))             
+ 
+           
+```
+
+
+
