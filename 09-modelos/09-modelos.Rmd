@@ -97,7 +97,7 @@ $$p_{X_j}(x_j) = \int_{x_1,...,x_{j-1},x_{j+1},...,x_n}p(x_1,...,x_n)dx_1,...,dx
 probabilidad de que 
 un departamento elegido al azar sea público?
 
-<!--
+
 
 Renta/Tipo    |público | privado |otros |p(Renta)  
 --------------|:--------|:---------|:------|:-------  
@@ -106,7 +106,7 @@ Renta/Tipo    |público | privado |otros |p(Renta)
 **media alta**|0.09    |0.07     |0.01   | **0.17**
 **alta**      |0       |0.14     |0.10   |**0.15**
 **p(Tipo)**   |**0.7** |**0.25** |**0.5**|**1**  
--->
+
 
 ### Probabilidad condicional
 
