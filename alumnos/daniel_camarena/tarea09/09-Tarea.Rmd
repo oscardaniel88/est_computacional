@@ -1,5 +1,6 @@
 ---
 title: 'Tarea: simulación de modelos'
+author: 'Daniel Camarena'
 output: html_document
 ---
 

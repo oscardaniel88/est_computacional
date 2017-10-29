@@ -1,0 +1,208 @@
+---
+title: "10-Tarea: bootstrap paramétrico"
+auhtor: "Daniel Camarena"
+output: html_document
+---
+```{r, echo = FALSE, include = FALSE, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(purrr)
+library(gridExtra)
+library(knitr)
+library(Hmisc)
+library(fda)
+library(lubridate)
+library(magrittr)
+library(splines)
+```
+1. Sean $X_1,...,X_n \sim N(\mu, 1)$. Sea $\theta = e^{\mu}$, crea una base de 
+datos usando $\mu=5$ que consista de $n=100$ observaciones.
+
+* Usa el método delta para estimar $\hat{se}$ y crea un intervalo del 95% de
+confianza. Usa boostrap paramétrico para crear un intervalo del 95%. Usa 
+bootstrap no paramétrico para crear un intervalo del 95%. Compara tus respuestas.
+
+```{r}
+# fijamos la semilla
+set.seed(98765431)
+
+# definimos los parámetros de la base de datos
+mu <- 5
+n <- 100
+
+# simulaciones
+normales <- rnorm(n = n, mean = mu, sd = 1)
+
+# theta 
+theta <- exp(mean(normales))
+se_theta <- abs(theta) * sd(normales) / sqrt(n)
+
+# función para bootstrap paramétrico
+b_param <- function(n, mu){
+  sim <- rnorm(n, mu, 1)
+  exp(mean(sim))
+}
+
+# función para bootstrap no paramétrico
+b_noparam <- function(datos, n){
+  smp <- sample(datos, n, replace = TRUE)
+  exp(mean(smp))
+}
+
+# definimos el número de simulaciones para los bootstrap
+num_sim <- 1000
+
+# simulaciones bootstrap paramétrico
+sim_param <- rerun(num_sim, b_param(n, mu)) %>% flatten_dbl
+
+# simulaciones bootstrap no paramétrico
+sim_noparam <- rerun(num_sim, b_noparam(normales, n)) %>% flatten_dbl
+
+# intervalo de confianza método delta
+ic_delta_inf <- theta - 1.96 * se_theta
+ic_delta_sup <- theta + 1.96 * se_theta
+
+# intervalo de confianza bootstrap paramétrico
+ic_param_inf <- theta - 1.96 * sd(sim_param)
+ic_param_sup <- theta + 1.96 * sd(sim_param)
+
+# intervalo de confianza bootstrap no paramétrico
+ic_noparam_inf <- theta - 1.96 * sd(sim_noparam)
+ic_noparam_sup <- theta + 1.96 * sd(sim_noparam)
+
+# matriz con los valores de los intervalos
+ic_matriz <- matrix(c(ic_delta_inf, ic_param_inf, ic_noparam_inf, ic_delta_sup, ic_param_sup, ic_noparam_sup), ncol = 2)
+rownames(ic_matriz) <- c("Método delta", "Bootstrap paramétrico", "Bootstrap no paramétrico")
+colnames(ic_matriz) <- c("Límite inferior", "Límite superior")
+
+kable(ic_matriz)
+```
+
+
+* Realiza un histograma de replicaciones bootstrap para cada método, estas son
+estimaciones de la distribución de $\hat{\theta}$. El método delta también nos
+da una aproximación a esta distribución: $Normal(\hat{\theta},\hat{se}^2)$. 
+Comparalos con la verdadera distribución de $\hat{\theta}$ (que puedes obtener 
+vía simulación). ¿Cuál es la aproximación más cercana a la verdadera 
+distribución?
+
+```{r}
+# generamos las simulaciones del método delta
+sim_delta <- rnorm(num_sim, theta, se_theta)
+
+# simulamos la distribución verdadera de theta_hat
+sim_theta <- rnorm(num_sim, theta, 13)
+
+dist <- function(n, mu){
+  datos <- rnorm(n = n, mean = mu, sd = 1)
+  exp(mean(datos))
+}
+
+sim_theta <- rerun(num_sim, dist(n, mu)) %>% flatten_dbl
+
+# creamos un dataframe para ggplot
+sim <- data_frame(sim_theta, sim_delta, sim_param, sim_noparam)
+
+# histograma de las distribuciones
+sim %>% 
+  ggplot() +
+  geom_density(aes(x = sim_theta), color = "darkmagenta") + 
+  geom_density(aes(x = sim_delta), color = "olivedrab") +
+  geom_density(aes(x = sim_param), color = "orangered") +
+  geom_density(aes(x = sim_noparam), color = "steelblue")
+
+```
+
+Pista: $se(\hat{\mu}) = 1/\sqrt{n}$
+
+
+Podemos observar que la distribución más cercana a la verdadera es la obtenida mediante bootstrap paramétrico
+
+2. La base de datos vancouver.csv contiene promedios de precipitación de 
+mediciones (en mm) provenientes de Vancouver entre 1960 y 1994.
+```{r, message = FALSE, warning = FALSE}
+vancouver <- read_csv("./vancouver.csv")
+kable(head(vancouver))
+```
+
+* Utiliza b-splines cúbicos para estudiar la relación entre el día y el 
+promedio registrado. Deberás crear una variable numérica x que represente el día
+y utiliza como nudos los extremos y 3 puntos interiores igualmente espaciados, 
+es decir, tendrás 4 regiones. Grafica la curva estimada.
+
+```{r}
+# extraemos el dia de la fecha
+vancouver_mod <- vancouver %>% 
+  mutate(Day = as.numeric(parse_date(paste(1970, substr(date, 1, 3), parse_number(date), sep = "-"), format = "%Y-%b-%d")))
+
+# observamos los datos
+vancouver_mod %>% 
+  ggplot(aes(Day, prec)) +
+  geom_point()
+
+# definimos los nudos del spline
+nudos <- quantile(vancouver_mod$Day)
+
+# creamos la base para el spline
+base <- create.bspline.basis(norder = 4, breaks = nudos)
+
+# evaluamos la base
+H <- eval.basis(vancouver_mod$Day, base)
+kable(head(H))
+
+# obtenemos los parámetros beta
+beta_hat <- as.vector(solve(t(H) %*% H) %*% t(H) %*% vancouver_mod$prec)
+beta_hat
+
+# creamos la función auxiliar
+f_mu <- function(x, betas){
+    as.numeric(betas %*% t(eval.basis(x, base)))
+}
+
+# curva del splines ajustado
+vancouver_mod %>% 
+  ggplot(aes(Day, prec)) +
+    geom_point(alpha = 0.5) + 
+    stat_function(fun = f_mu, args = list(betas = beta_hat), color = "orangered")
+```
+
+* Crea bandas de errores estándar usando bootstrap paramético y suponiendo que 
+los errores tienen una distribución normal.
+
+```{r, message = FALSE, warning = FALSE}
+mu_hat <- f_mu(vancouver_mod$Day, beta_hat)
+sigma_hat <- sqrt(1 / n * sum((vancouver_mod$prec - mu_hat) ^ 2))
+
+# creamos las muestras bootstrap (paramétrico)
+splinesBootP <- function(){
+    vancouver_boot <- data_frame(x = vancouver_mod$Day, y = mu_hat + rnorm(n, 0, sigma_hat))
+    H <- eval.basis(vancouver_boot$x, base)
+    as.vector(solve(t(H) %*% H) %*% t(H) %*% vancouver_boot$y)
+}
+
+betas_p <- rerun(num_sim, splinesBootP()) %>% reduce(rbind)
+
+# construimos los intervalos
+x_grid <- seq(nudos[1], nudos[5], 0.02)
+H <- eval.basis(x_grid, base)
+y <- betas_p %*% t(H)
+
+betas_list <- split(betas_p, seq(nrow(betas_p)))
+
+y <- purrr::map_df(betas_list, ~ data_frame(x = x_grid, mu = as.vector(. %*% t(H))))
+
+# construimos los límites de los intervalos
+limites <- y %>% 
+  group_by(x) %>% 
+  summarise(
+    limite_inf = quantile(mu, probs = 0.025), 
+    limite_sup = quantile(mu, probs = 0.975)
+    )
+  
+ggplot(limites) + 
+    geom_line(aes(x = x, y = limite_inf), color = "darkturquoise") +
+    geom_line(aes(x = x, y = limite_sup), color = "darkturquoise") +
+    geom_point(data = vancouver_mod, aes(x = Day, y = prec), color = "black", alpha = 0.5) + 
+    stat_function(fun = f_mu, args = list(betas = beta_hat), color = "orangered") +
+    labs(x = "", y = "")
+
+```
