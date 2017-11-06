@@ -1,0 +1,212 @@
+---
+title: "Tarea 11"
+author: "Daniel Camarena"
+date: "2/11/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(LearnBayes)
+library(gridExtra)
+
+```
+
+# Estadistica Bayesiana
+
+### 1. Modelo Beta-Binomial
+
+Una compañía farmacéutica afirma que su nueva medicina incrementa la probabilidad de concebir un niño (sexo masculino), pero aún no publican estudios. Supón que conduces un experimento en el cual 50 parejas se seleccionan de manera aleatoria de la población, toman la medicina y conciben un bebé, nacen 30 niños y 20 niñas.
+
+* a. Quieres estimar la probabilidad de concebir un niño para parejas que toman la medicina. ¿Cuál es una inicial apropiada? No tiene que estar centrada en 0.5 pues esta corresponde a personas que no toman la medicina, y la inicial debe reflejar tu incertidumbre sobre el efecto de la droga.
+* b. Usando tu inicial de a) grafica la posterior y decide si es creíble que las parejas que toman la medicina tienen una probabilidad de 0.5 de concebir un niño.
+* c. Supón que la farmacéutica asevera que la probabilidad de concebir un niño cuando se toma la medicina es cercana al 60% con alta certeza. Representa esta postura con una distribución inicial Beta(60,40). Comparala con la inicial de un escéptico que afirma que la medicina no hace diferencia, representa esta creencia con una inicial Beta(50,50). Recuerda que $$p(x)=Beta(z+a,N−z+b)/Beta(a,b)$$
+
+a)
+```{r}
+a=30
+b=20
+
+theta<- rbeta(1000,30,20)
+prior<-dbeta(theta,30,20)
+
+base <- ggplot(data_frame(x = c(0, 1)), aes(x)) 
+base + 
+    stat_function(fun = dbeta, args = list(shape1 = 30, shape2 = 20), 
+        aes(colour = "Distribucion inicial"))
+
+```
+
+b)
+```{r}
+N <- 50 # casos
+z <- 30 # exitos
+
+final<- dbeta(theta, z+a,N-z+b)/dbeta(theta,a,b)
+
+
+# Verosimilitud
+Like <- theta ^ z * (1 - theta) ^ (N - z)
+product <- Like * prior
+
+post <- product / sum(product)
+
+
+
+p1 <- base +
+    stat_function(fun = dbeta, args = list(shape1 = a, shape2 = b), 
+        aes(colour = "inicial"), show.legend = TRUE) + 
+    stat_function(fun = dbeta, args = list(shape1 = z + 1, shape2 = N - z + 1), 
+        aes(colour = "verosimilitud"), show.legend = TRUE) + 
+    stat_function(fun = dbeta, args = list(shape1 = a + z, shape2 = N - z + b), 
+        aes(colour = "posterior"), show.legend = TRUE) +
+      labs(y = "", colour = "", x = expression(theta))
+
+p1
+```
+
+c)
+```{r}
+prior_1<- dbeta(theta,60,40)
+prior_2<-dbeta(theta,50,50)
+
+product_1 <- Like * prior_1
+product_2 <- Like * prior_2
+
+post_1 <- product_1 / sum(product_1)
+post_2 <- product_2 / sum(product_2)
+
+#plot(theta,post_1)
+#plot(theta,post_2)
+
+
+
+a=60
+b=40
+p1 <- base +
+    stat_function(fun = dbeta, args = list(shape1 = a, shape2 = b), 
+        aes(colour = "inicial"), show.legend = FALSE) + 
+    stat_function(fun = dbeta, args = list(shape1 = z + 1, shape2 = N - z + 1), 
+        aes(colour = "verosimilitud"), show.legend = FALSE) + 
+    stat_function(fun = dbeta, args = list(shape1 = a + z, shape2 = N - z + b), 
+        aes(colour = "posterior"), show.legend = FALSE) +
+      labs(y = "", colour = "", x = expression(theta)) + ggtitle("Beta inicial (60,40)")
+
+a = 50; b = 50
+p2 <- base +
+    stat_function(fun = dbeta, args = list(shape1 = a, shape2 = b), 
+        aes(colour = "inicial")) + 
+    stat_function(fun = dbeta, args = list(shape1 = z + 1, shape2 = N - z + 1), 
+        aes(colour = "verosimilitud")) + 
+    stat_function(fun = dbeta, args = list(shape1 = a + z, shape2 = N - z + b), 
+        aes(colour = "posterior")) +
+      labs(y = "", colour = "", x = expression(theta)) + ggtitle("Beta inicial (50,50)")
+
+grid.arrange(p1, p2, nrow = 1, widths = c(0.38, 0.62))
+
+
+
+```
+
+
+# 2 Otra familia conjugada
+
+Calcula la distribución posterior p(θ|x)∝p(x|θ)p(θ), usando la inicial y verosimilitud que definimos arriba. Una vez que realices la multiplicación debes identificar el núcleo de una distribución Normal, ¿cuáles son sus parámetros (media y varianza)?
+
+
+![2_1](Imagenes/2_1.jpg)
+
+![2_2](Imagenes/2_2.jpg)
+
+# 3 Metropolis
+En el ejercicio anterior hiciste cálculos para el caso de una sola observación. En este ejercicio consideramos el caso en que observamos una muestra x={x1,...,xN}.Crea una función prior que reciba los parámetros μ y τ que definen tus creencias del parámetro desconocido θ y devuelva p(θ), donde p(θ) tiene distribución N(μ,σ2)
+
+
+a) Crea una función prior que reciba los parámetros μ y τ que definen tus creencias del parámetro desconocido θ y devuelva p(θ)
+, donde p(θ) tiene distriución N(μ,σ2)
+```{r}
+prior <- function(mu, tau){
+  function(theta){
+    p_0<- (1/sqrt(2*pi*(tau^2)))*exp(-((theta-mu)^2)/(2*(tau^2)))
+    return(p_0)
+  }
+}
+
+```
+
+b) Utiliza la función que acabas de escribir para definir una distribución inicial con parámetros μ=150 y τ=15, llámala mi_prior.
+```{r}
+mi_prior<-prior(150,15)
+```
+
+c) Crea una función likeNorm en R que reciba la desviación estándar, la suma de los valores observados ∑xi, la suma de los valores al cuadrado ∑x2i y el número de observaciones N la función devolverá la función de verosimilitud (es decir va a regresar una función que depende únicamente de θ).
+```{r}
+likeNorm <- function(sigma, S, S2, N){
+  function(theta){
+     like<- (1/(2*pi*(sigma^(N/2))))*(-(1/(2*sigma^2))*(S2-2*theta*S+N*theta^2))
+    return(like)
+  }
+}
+```
+
+d) Supongamos que aplicamos un test de IQ a 100 alumnos y observamos que la suma de los puntajes es 13300, es decir ∑xi=13,000 y ∑x2i=1,700,000. Utiliza la función que acabas de escribir para definir la función de verosimilitud condicional a los datos observados, llámala mi_like.
+```{r}
+mi_like<-likeNorm(20,13000,1700000,100)
+```
+
+e) La distribución posterior no normalizada es simplemente el producto de la inicial y la posterior:
+```{r}
+postRelProb <- function(theta){
+  mi_like(theta) * mi_prior(theta)
+}
+```
+
+f) Grafica los valores de la cadena para cada paso.
+```{r}
+
+# Datos observados
+
+# para cada paso decidimos el movimiento de acuerdo a la siguiente función
+caminaAleat <- function(theta){ # theta: valor actual
+  salto_prop <- rnorm(1, 0, 5) # salto propuesto
+  theta_prop <- theta + salto_prop # theta propuesta
+  u <- runif(1) 
+  p_move <-  min(postRelProb(theta_prop) / postRelProb(theta), 1) # prob mover
+  if(p_move>u){
+    return(theta_prop) # aceptar valor propuesto
+  }
+  else{
+    return(theta) # rechazar
+  }
+}
+
+set.seed(47405)
+
+pasos <- 6000
+camino <- numeric(pasos) # vector que guardará las simulaciones
+camino[1] <- 15 # valor inicial
+
+# Generamos la caminata aleatoria
+for (j in 2:pasos){
+  camino[j] <- caminaAleat(camino[j - 1])
+}
+
+caminata <- data.frame(pasos = 1:pasos, theta = camino)
+
+ggplot(caminata[1:3000, ], aes(x = pasos, y = theta)) +
+  geom_point(size = 0.8) +
+  geom_path(alpha = 0.5) +
+  scale_y_continuous(expression(theta)) +
+  scale_x_continuous("Tiempo") 
+```
+
+g) Elimina los valores correspondientes a la etapa de calentamiento y realiza un histograma de la distribución posterior.
+```{r}
+camino <- camino[-(1:67)]
+post <- lapply(camino,postRelProb) %>% flatten_dbl()
+hist(post,breaks=100)
+```
+
